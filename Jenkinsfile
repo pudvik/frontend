@@ -11,6 +11,8 @@ pipeline {
     environment {
         def appVersion = ''
         nexusUrl = '35.153.142.179:8081'
+        region = 'us-east-1'
+        account_id = '798283511816'
 
 
     }
@@ -38,7 +40,30 @@ pipeline {
             }
         }
 
-        stage('Nexus Artifact Upload'){
+        stage('docker build'){
+            steps{
+                sh """
+                    aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${account_id}.dkr.ecr.${region}.amazonaws.com
+
+                    docker build -t ${account_id}.dkr.ecr.${region}.amazonaws.com/expense-frontend:${appVersion} .
+
+                    docker push ${account_id}.dkr.ecr.${region}.amazonaws.com/expense-frontend:${appVersion}
+                """
+            }
+        }
+
+        stage('deploy'){
+            steps{
+                sh """
+                    aws eks update-kubeconfig --region us-east-1 --name expense-dev
+                    cd helm
+                    sed -i 's/IMAGE_VERSION/${appVersion}/g' values.yaml
+                    helm upgrade frontend .
+                """
+            }
+        }
+
+        /* stage('Nexus Artifact Upload'){
             steps{
                 script{
                     nexusArtifactUploader(
@@ -58,7 +83,7 @@ pipeline {
                     )
                 }
             }
-        }
+        } */
 
         // stage('Deploy'){
         //     steps{
